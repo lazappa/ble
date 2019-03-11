@@ -105,11 +105,19 @@ func (d *Device) Init() error {
 
 // Advertise advertises the given Advertisement
 func (d *Device) Advertise(ctx context.Context, adv ble.Advertisement) error {
-	rsp, err := d.sendReq(d.pm, cmdAdvertiseStart, xpc.Dict{
-		"kCBAdvDataLocalName":    adv.LocalName(),
-		"kCBAdvDataServiceUUIDs": adv.Services(),
-		"kCBAdvDataAppleMfgData": adv.ManufacturerData(),
-	})
+	dict := xpc.Dict{}
+	if adv.LocalName() != "" {
+		dict["kCBAdvDataLocalName"] = adv.LocalName()
+	}
+	if len(adv.Services()) > 0 {
+		dict["kCBAdvDataServiceUUIDs"] = uuidSlice(adv.Services())
+	}
+	if len(adv.ManufacturerData()) > 0 {
+		man := adv.ManufacturerData()
+		id := binary.LittleEndian.Uint16(man[0:2])
+		dict["kCBAdvDataAppleMfgData"] = d.formatMfgData(id, man[2:])
+	}
+	rsp, err := d.sendReq(d.pm, cmdAdvertiseStart, dict)
 	if err != nil {
 		return err
 	}
@@ -124,10 +132,8 @@ func (d *Device) Advertise(ctx context.Context, adv ble.Advertisement) error {
 
 // AdvertiseMfgData ...
 func (d *Device) AdvertiseMfgData(ctx context.Context, id uint16, md []byte) error {
-	l := len(md)
-	b := []byte{byte(l + 3), 0xFF, uint8(id), uint8(id >> 8)}
 	rsp, err := d.sendReq(d.pm, cmdAdvertiseStart, xpc.Dict{
-		"kCBAdvDataAppleMfgData": append(b, md...),
+		"kCBAdvDataAppleMfgData": d.formatMfgData(id, md),
 	})
 	if err != nil {
 		return err
@@ -137,6 +143,13 @@ func (d *Device) AdvertiseMfgData(ctx context.Context, id uint16, md []byte) err
 	}
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+// formatMfgData utility to create mfg packet
+func (d *Device) formatMfgData(id uint16, md []byte) []byte {
+	l := len(md)
+	b := []byte{byte(l + 3), 0xFF, uint8(id), uint8(id >> 8)}
+	return append(b, md...)
 }
 
 // AdvertiseServiceData16 advertises data associated with a 16bit service uuid
