@@ -65,10 +65,12 @@ func (h *HCI) AdvertiseAdv(a ble.Advertisement) error {
 		}
 	}
 	sr, _ := adv.NewPacket()
-	switch {
-	case ad.Append(adv.CompleteName(a.LocalName())) == nil:
-	case sr.Append(adv.CompleteName(a.LocalName())) == nil:
-	case sr.Append(adv.ShortName(a.LocalName())) == nil:
+	if a.LocalName() != "" {
+		switch {
+		case ad.Append(adv.CompleteName(a.LocalName())) == nil:
+		case sr.Append(adv.CompleteName(a.LocalName())) == nil:
+		case sr.Append(adv.ShortName(a.LocalName())) == nil:
+		}
 	}
 
 	if a.ManufacturerData() != nil {
